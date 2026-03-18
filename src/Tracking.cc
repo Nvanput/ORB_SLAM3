@@ -33,6 +33,8 @@
 
 #include <mutex>
 #include <chrono>
+#include <sstream>
+#include <iomanip>
 
 
 using namespace std;
@@ -97,6 +99,10 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     initID = 0; lastID = 0;
     mbInitWith3KFs = false;
     mnNumDataset = 0;
+
+    // Initialize tree mask handling
+    mTreeMaskPath = "data/masks";
+    mTreeDetectionThreshold = 5;  // Threshold for marking a point as tree point
 
     vector<GeometricCamera*> vpCams = mpAtlas->GetAllCameras();
     std::cout << "There are " << vpCams.size() << " cameras in the atlas" << std::endl;
@@ -4122,5 +4128,55 @@ void Tracking::Release()
     mbStopRequested = false;
 }
 #endif
+
+void Tracking::LoadTreeMask(const double &timeStamp)
+{
+    // Convert timestamp to filename format (assuming frame number corresponds to timestamp)
+    // Formats: data/masks/frame_timestamp.png or data/masks/frame_%06d.png
+    // This assumes your mask filenames follow a pattern. Adjust as needed for your dataset.
+    
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(0) << timeStamp;
+    std::string timeStr = ss.str();
+    
+    // Try multiple filename patterns
+    std::vector<std::string> maskPaths = {
+        mTreeMaskPath + "/" + timeStr + "_mask.png",
+        mTreeMaskPath + "/frame_" + timeStr + "_mask.png",
+        mTreeMaskPath + "/" + timeStr + ".png"
+    };
+    
+    for(const auto &path : maskPaths)
+    {
+        cv::Mat mask = cv::imread(path, cv::IMREAD_GRAYSCALE);
+        if(!mask.empty())
+        {
+            mCurrentTreeMask = mask;
+            return;
+        }
+    }
+    
+    // If no mask found, create an empty mask (all zeros)
+    if(!mCurrentTreeMask.empty())
+    {
+        mCurrentTreeMask.setTo(0);
+    }
+}
+
+bool Tracking::IsFeatureInTreeMask(const cv::Point2f &pt) const
+{
+    if(mCurrentTreeMask.empty())
+        return false;
+    
+    int x = (int)pt.x;
+    int y = (int)pt.y;
+    
+    // Check bounds
+    if(x < 0 || y < 0 || x >= mCurrentTreeMask.cols || y >= mCurrentTreeMask.rows)
+        return false;
+    
+    // Check if pixel is white (tree region is marked white, value > 127)
+    return mCurrentTreeMask.at<uchar>(y, x) > 127;
+}
 
 } //namespace ORB_SLAM

@@ -31,7 +31,7 @@ MapPoint::MapPoint():
     mnFirstKFid(0), mnFirstFrame(0), nObs(0), mnTrackReferenceForFrame(0),
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mnVisible(1), mnFound(1), mbBad(false),
-    mpReplaced(static_cast<MapPoint*>(NULL))
+    mpReplaced(static_cast<MapPoint*>(NULL)), mTreeDetectionCount(0)
 {
     mpReplaced = static_cast<MapPoint*>(NULL);
 }
@@ -41,7 +41,7 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map* pMap):
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
     mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap),
-    mnOriginMapId(pMap->GetId())
+    mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0)
 {
     SetWorldPos(Pos);
 
@@ -60,7 +60,7 @@ MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame* pRefKF,
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
     mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap),
-    mnOriginMapId(pMap->GetId())
+    mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0)
 {
     mInvDepth=invDepth;
     mInitU=(double)uv_init.x;
@@ -79,7 +79,7 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map* pMap, Frame* pFrame, const i
     mnFirstKFid(-1), mnFirstFrame(pFrame->mnId), nObs(0), mnTrackReferenceForFrame(0), mnLastFrameSeen(0),
     mnBALocalForKF(0), mnFuseCandidateForKF(0),mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(static_cast<KeyFrame*>(NULL)), mnVisible(1),
-    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap), mnOriginMapId(pMap->GetId())
+    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap), mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0)
 {
     SetWorldPos(Pos);
 
@@ -629,6 +629,24 @@ void MapPoint::PostLoad(map<long unsigned int, KeyFrame*>& mpKFid, map<long unsi
 
     mBackupObservationsId1.clear();
     mBackupObservationsId2.clear();
+}
+
+void MapPoint::IncreaseTreeDetectionCount(int n)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mTreeDetectionCount += n;
+}
+
+int MapPoint::GetTreeDetectionCount()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mTreeDetectionCount;
+}
+
+bool MapPoint::IsTreePoint(int threshold)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mTreeDetectionCount >= threshold;
 }
 
 } //namespace ORB_SLAM

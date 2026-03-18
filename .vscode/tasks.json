@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+            "label": "Build ORB-SLAM3",
+            "type": "shell",
+            "command": "./build_this_only.sh",
+            "group": { "kind": "build", "isDefault": true }
+        }
+	]
+}

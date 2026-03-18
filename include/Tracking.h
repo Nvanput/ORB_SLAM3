@@ -176,6 +176,10 @@ public:
 
     bool mbWriteStats;
 
+    // Tree mask handling
+    void LoadTreeMask(const double &timeStamp);
+    bool IsFeatureInTreeMask(const cv::Point2f &pt) const;
+
 #ifdef REGISTER_TIMES
     void LocalMapStats2File();
     void TrackStats2File();
@@ -356,6 +360,11 @@ protected:
     Sophus::SE3f mTlr;
 
     void newParameterLoader(Settings* settings);
+
+    // Tree mask handling
+    cv::Mat mCurrentTreeMask;
+    string mTreeMaskPath;
+    int mTreeDetectionThreshold;
 
 #ifdef REGISTER_LOOP
     bool Stop();

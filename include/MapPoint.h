@@ -155,6 +155,11 @@ public:
     Map* GetMap();
     void UpdateMap(Map* pMap);
 
+    // Tree detection methods
+    void IncreaseTreeDetectionCount(int n=1);
+    int GetTreeDetectionCount();
+    bool IsTreePoint(int threshold=5);
+
     void PrintObservations();
 
     void PreSave(set<KeyFrame*>& spKF,set<MapPoint*>& spMP);
@@ -243,6 +248,9 @@ protected:
      float mfMaxDistance;
 
      Map* mpMap;
+
+     // Tree detection counter
+     int mTreeDetectionCount;
 
      // Mutex
      std::mutex mMutexPos;
