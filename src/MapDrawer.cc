@@ -165,7 +165,7 @@ void MapDrawer::DrawMapPoints()
     glEnd();
 
     // Draw tree points in green
-    glPointSize(mPointSize*2);
+    glPointSize(mPointSize*4);
     glBegin(GL_POINTS);
     glColor3f(0.0, 1.0, 0.0);  // Green color for tree points
     
@@ -175,12 +175,28 @@ void MapDrawer::DrawMapPoints()
             continue;
         
         // Only draw if this is a tree point
-        if(!vpMPs[i]->IsTreePoint(3))  // Threshold of 3 detections
+        if(!vpMPs[i]->IsTreePoint(5))  // Threshold of 5 detections
             continue;
         
         Eigen::Matrix<float,3,1> pos = vpMPs[i]->GetWorldPos();
         glVertex3f(pos(0),pos(1),pos(2));
     }
+    glEnd();
+
+    glPointSize(mPointSize*4);
+    glBegin(GL_POINTS);
+    glColor3f(0.0,1.0,0.0);
+
+    for(set<MapPoint*>::iterator sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
+    {
+        if((*sit)->isBad())
+            continue;
+        if(!(*sit)->IsTreePoint(5))
+            continue;
+        Eigen::Matrix<float,3,1> pos = (*sit)->GetWorldPos();
+        glVertex3f(pos(0),pos(1),pos(2));
+    }
+
     glEnd();
 
     glPointSize(mPointSize);
@@ -191,9 +207,10 @@ void MapDrawer::DrawMapPoints()
     {
         if((*sit)->isBad())
             continue;
+        if((*sit)->IsTreePoint(5))
+            continue;
         Eigen::Matrix<float,3,1> pos = (*sit)->GetWorldPos();
         glVertex3f(pos(0),pos(1),pos(2));
-
     }
 
     glEnd();

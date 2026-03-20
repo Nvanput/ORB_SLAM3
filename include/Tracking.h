@@ -177,7 +177,7 @@ public:
     bool mbWriteStats;
 
     // Tree mask handling
-    void LoadTreeMask(const double &timeStamp);
+    void LoadTreeMask(const string &imagePath);
     bool IsFeatureInTreeMask(const cv::Point2f &pt) const;
 
 #ifdef REGISTER_TIMES

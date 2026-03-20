@@ -1608,6 +1608,7 @@ Sophus::SE3f Tracking::GrabImageMonocular(const cv::Mat &im, const double &times
         t0=timestamp;
 
     mCurrentFrame.mNameFile = filename;
+    cout << "Frame with filename " << filename << " and timestamp " << timestamp-t0 << endl;
     mCurrentFrame.mnDataset = mnNumDataset;
 
 #ifdef REGISTER_TIMES
@@ -1807,6 +1808,10 @@ void Tracking::Track()
             usleep(500);
         mbStep = false;
     }
+
+    // Load tree mask once per frame so all tracking branches use the same mask.
+    cout << "Loading tree mask for frame " << mCurrentFrame.mnId << " with filename " << mCurrentFrame.mNameFile << endl;
+    LoadTreeMask(mCurrentFrame.mNameFile);
 
     if(mpLocalMapper->mbBadImu)
     {
@@ -2774,7 +2779,19 @@ bool Tracking::TrackReferenceKeyFrame()
                 nmatches--;
             }
             else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+            {
                 nmatchesMap++;
+
+                if(i < static_cast<int>(mCurrentFrame.mvKeysUn.size()))
+                {
+                    const cv::Point2f pt = mCurrentFrame.mvKeysUn[i].pt;
+                    if(IsFeatureInTreeMask(pt))
+                    {
+                        mCurrentFrame.mvpMapPoints[i]->IncreaseTreeDetectionCount(1);
+                        cout << "TrackReferenceKeyFrame: Feature in tree mask: tree detection count is " << mCurrentFrame.mvpMapPoints[i]->GetTreeDetectionCount() << endl;
+                    }
+                }
+            }
         }
     }
 
@@ -2913,7 +2930,7 @@ bool Tracking::TrackWithMotionModel()
 
     // Optimize frame pose with all matches
     Optimizer::PoseOptimization(&mCurrentFrame);
-
+    
     // Discard outliers
     int nmatchesMap = 0;
     for(int i =0; i<mCurrentFrame.N; i++)
@@ -2936,7 +2953,19 @@ bool Tracking::TrackWithMotionModel()
                 nmatches--;
             }
             else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+            {
                 nmatchesMap++;
+
+                if(i < static_cast<int>(mCurrentFrame.mvKeysUn.size()))
+                {
+                    const cv::Point2f pt = mCurrentFrame.mvKeysUn[i].pt;
+                    if(IsFeatureInTreeMask(pt))
+                    {   
+                        mCurrentFrame.mvpMapPoints[i]->IncreaseTreeDetectionCount();
+                        cout << "TrackReferenceKeyFrame: Feature in tree mask, tree detection count is " << mCurrentFrame.mvpMapPoints[i]->GetTreeDetectionCount() << endl;
+                    }
+                }
+            }
         }
     }
 
@@ -3417,6 +3446,7 @@ void Tracking::SearchLocalPoints()
             th=15; // 15
 
         int matches = matcher.SearchByProjection(mCurrentFrame, mvpLocalMapPoints, th, mpLocalMapper->mbFarPoints, mpLocalMapper->mThFarPoints);
+
     }
 }
 
@@ -4129,52 +4159,72 @@ void Tracking::Release()
 }
 #endif
 
-void Tracking::LoadTreeMask(const double &timeStamp)
+void Tracking::LoadTreeMask(const string &imagePath)
 {
-    // Convert timestamp to filename format (assuming frame number corresponds to timestamp)
-    // Formats: data/masks/frame_timestamp.png or data/masks/frame_%06d.png
-    // This assumes your mask filenames follow a pattern. Adjust as needed for your dataset.
-    
-    std::stringstream ss;
-    ss << std::fixed << std::setprecision(0) << timeStamp;
-    std::string timeStr = ss.str();
-    
-    // Try multiple filename patterns
-    std::vector<std::string> maskPaths = {
-        mTreeMaskPath + "/" + timeStr + "_mask.png",
-        mTreeMaskPath + "/frame_" + timeStr + "_mask.png",
-        mTreeMaskPath + "/" + timeStr + ".png"
-    };
-    
-    for(const auto &path : maskPaths)
+    if(imagePath.empty())
     {
-        cv::Mat mask = cv::imread(path, cv::IMREAD_GRAYSCALE);
-        if(!mask.empty())
+        mCurrentTreeMask.release();
+        return;
+    }
+
+    size_t lastSlash = imagePath.find_last_of("/\\");
+    string imageDir = (lastSlash == string::npos) ? string() : imagePath.substr(0, lastSlash);
+    string fileName = (lastSlash == string::npos) ? imagePath : imagePath.substr(lastSlash + 1);
+
+    size_t lastDot = fileName.find_last_of('.');
+    string stem = (lastDot == string::npos) ? fileName : fileName.substr(0, lastDot);
+
+    vector<string> candidatePaths;
+    if(!imageDir.empty())
+    {
+        candidatePaths.push_back(imageDir + "/masks/" + stem + ".png");
+        candidatePaths.push_back(imageDir + "/masks/" + stem + "_mask.png");
+    }
+    candidatePaths.push_back(mTreeMaskPath + "/" + stem + ".png");
+    candidatePaths.push_back(mTreeMaskPath + "/" + stem + "_mask.png");
+
+    for(const string &maskPath : candidatePaths)
+    {
+        cv::Mat mask = cv::imread(maskPath, cv::IMREAD_GRAYSCALE);
+        if(mask.empty())
+            continue;
+
+        if(!mImGray.empty() && mask.size() != mImGray.size())
+        {
+            // Keep mask binary semantics while matching the image used by feature extraction.
+            cv::resize(mask, mCurrentTreeMask, mImGray.size(), 0.0, 0.0, cv::INTER_NEAREST);
+        }
+        else
         {
             mCurrentTreeMask = mask;
-            return;
         }
+
+        cout << "TREE MASK: Tree mask loaded!" << maskPath << endl;
+        return;
     }
-    
-    // If no mask found, create an empty mask (all zeros)
-    if(!mCurrentTreeMask.empty())
-    {
-        mCurrentTreeMask.setTo(0);
-    }
+
+    cout << "TREE MASK: Warning: Tree mask not found for frame " << imagePath << endl;
+    mCurrentTreeMask.release();
 }
 
 bool Tracking::IsFeatureInTreeMask(const cv::Point2f &pt) const
 {
     if(mCurrentTreeMask.empty())
+    {
+        cout << "TREE MASK: No tree mask available" << endl;
         return false;
+    }
     
     int x = (int)pt.x;
     int y = (int)pt.y;
     
     // Check bounds
     if(x < 0 || y < 0 || x >= mCurrentTreeMask.cols || y >= mCurrentTreeMask.rows)
+    {
+        cout << "TREE MASK: Point (" << x << ", " << y << ") is out of bounds" << endl;
         return false;
-    
+    }
+    cout << "TREE MASK: Checking tree mask at (" << x << ", " << y << ") - value: " << (int)mCurrentTreeMask.at<uchar>(y, x) << endl;
     // Check if pixel is white (tree region is marked white, value > 127)
     return mCurrentTreeMask.at<uchar>(y, x) > 127;
 }

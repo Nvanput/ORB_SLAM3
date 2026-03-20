@@ -250,7 +250,7 @@ void MapPoint::Replace(MapPoint* pMP)
     if(pMP->mnId==this->mnId)
         return;
 
-    int nvisible, nfound;
+    int nvisible, nfound, nTreeDetections;
     map<KeyFrame*,tuple<int,int>> obs;
     {
         unique_lock<mutex> lock1(mMutexFeatures);
@@ -260,6 +260,7 @@ void MapPoint::Replace(MapPoint* pMP)
         mbBad=true;
         nvisible = mnVisible;
         nfound = mnFound;
+        nTreeDetections = mTreeDetectionCount;
         mpReplaced = pMP;
     }
 
@@ -294,6 +295,7 @@ void MapPoint::Replace(MapPoint* pMP)
     }
     pMP->IncreaseFound(nfound);
     pMP->IncreaseVisible(nvisible);
+    pMP->IncreaseTreeDetectionCount(nTreeDetections);
     pMP->ComputeDistinctiveDescriptors();
 
     mpMap->EraseMapPoint(this);
