@@ -167,6 +167,11 @@ public:
     // See format details at: http://www.cvlibs.net/datasets/kitti/eval_odometry.php
     void SaveTrajectoryKITTI(const string &filename);
 
+    // Save all map points as JSON with position (x, y, z) and tree detection count.
+    // This method works for all sensor inputs.
+    // Call first Shutdown()
+    void SavePointCloudJSON(const string &filename);
+
     // TODO: Save/Load functions
     // SaveMap(const string &filename);
     // LoadMap(const string &filename);

@@ -480,6 +480,10 @@ namespace ORB_SLAM3 {
         bool found;
 
         thFarPoints_ = readParameter<float>(fSettings,"System.thFarPoints",found,false);
+
+        treeDetectionThreshold_ = readParameter<int>(fSettings,"System.TreeDetectionThreshold",found,false);
+        if(!found)
+            treeDetectionThreshold_ = 5;
     }
 
     void Settings::precomputeRectificationMaps() {
@@ -632,6 +636,7 @@ namespace ORB_SLAM3 {
         output << "\t-ORB number of scales: " << settings.nLevels_ << endl;
         output << "\t-Initial FAST threshold: " << settings.initThFAST_ << endl;
         output << "\t-Min FAST threshold: " << settings.minThFAST_ << endl;
+        output << "\t-Tree detection threshold: " << settings.treeDetectionThreshold_ << endl;
 
         return output;
     }

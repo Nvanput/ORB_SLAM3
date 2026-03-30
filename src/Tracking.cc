@@ -50,6 +50,10 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpAtlas(pAtlas), mnLastRelocFrameId(0), time_recently_lost(5.0),
     mnInitialFrameId(0), mbCreatedMap(false), mnFirstFrameId(0), mpCamera2(nullptr), mpLastKeyFrame(static_cast<KeyFrame*>(NULL))
 {
+    // Initialize tree mask handling defaults.
+    mTreeMaskPath = "data/masks";
+    mTreeDetectionThreshold = 5;
+
     // Load camera parameters from settings file
     if(settings){
         newParameterLoader(settings);
@@ -94,15 +98,20 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
 
             }
         }
+
+        cv::FileNode node = fSettings["System.TreeDetectionThreshold"];
+        if(!node.empty())
+        {
+            if(node.isInt())
+                mTreeDetectionThreshold = node.operator int();
+            else
+                cout << "Tracking: System.TreeDetectionThreshold must be integer. Using default (5)." << endl;
+        }
     }
 
     initID = 0; lastID = 0;
     mbInitWith3KFs = false;
     mnNumDataset = 0;
-
-    // Initialize tree mask handling
-    mTreeMaskPath = "data/masks";
-    mTreeDetectionThreshold = 5;  // Threshold for marking a point as tree point
 
     vector<GeometricCamera*> vpCams = mpAtlas->GetAllCameras();
     std::cout << "There are " << vpCams.size() << " cameras in the atlas" << std::endl;
@@ -590,6 +599,7 @@ void Tracking::newParameterLoader(Settings *settings) {
     mMinFrames = 0;
     mMaxFrames = settings->fps();
     mbRGB = settings->rgb();
+    mTreeDetectionThreshold = settings->treeDetectionThreshold();
 
     //ORB parameters
     int nFeatures = settings->nFeatures();
@@ -1608,7 +1618,6 @@ Sophus::SE3f Tracking::GrabImageMonocular(const cv::Mat &im, const double &times
         t0=timestamp;
 
     mCurrentFrame.mNameFile = filename;
-    cout << "Frame with filename " << filename << " and timestamp " << timestamp-t0 << endl;
     mCurrentFrame.mnDataset = mnNumDataset;
 
 #ifdef REGISTER_TIMES
@@ -1810,7 +1819,6 @@ void Tracking::Track()
     }
 
     // Load tree mask once per frame so all tracking branches use the same mask.
-    cout << "Loading tree mask for frame " << mCurrentFrame.mnId << " with filename " << mCurrentFrame.mNameFile << endl;
     LoadTreeMask(mCurrentFrame.mNameFile);
 
     if(mpLocalMapper->mbBadImu)
@@ -2786,10 +2794,7 @@ bool Tracking::TrackReferenceKeyFrame()
                 {
                     const cv::Point2f pt = mCurrentFrame.mvKeysUn[i].pt;
                     if(IsFeatureInTreeMask(pt))
-                    {
                         mCurrentFrame.mvpMapPoints[i]->IncreaseTreeDetectionCount(1);
-                        cout << "TrackReferenceKeyFrame: Feature in tree mask: tree detection count is " << mCurrentFrame.mvpMapPoints[i]->GetTreeDetectionCount() << endl;
-                    }
                 }
             }
         }
@@ -2960,10 +2965,7 @@ bool Tracking::TrackWithMotionModel()
                 {
                     const cv::Point2f pt = mCurrentFrame.mvKeysUn[i].pt;
                     if(IsFeatureInTreeMask(pt))
-                    {   
                         mCurrentFrame.mvpMapPoints[i]->IncreaseTreeDetectionCount();
-                        cout << "TrackReferenceKeyFrame: Feature in tree mask, tree detection count is " << mCurrentFrame.mvpMapPoints[i]->GetTreeDetectionCount() << endl;
-                    }
                 }
             }
         }
@@ -4198,8 +4200,6 @@ void Tracking::LoadTreeMask(const string &imagePath)
         {
             mCurrentTreeMask = mask;
         }
-
-        cout << "TREE MASK: Tree mask loaded!" << maskPath << endl;
         return;
     }
 
@@ -4221,11 +4221,8 @@ bool Tracking::IsFeatureInTreeMask(const cv::Point2f &pt) const
     // Check bounds
     if(x < 0 || y < 0 || x >= mCurrentTreeMask.cols || y >= mCurrentTreeMask.rows)
     {
-        cout << "TREE MASK: Point (" << x << ", " << y << ") is out of bounds" << endl;
         return false;
     }
-    cout << "TREE MASK: Checking tree mask at (" << x << ", " << y << ") - value: " << (int)mCurrentTreeMask.at<uchar>(y, x) << endl;
-    // Check if pixel is white (tree region is marked white, value > 127)
     return mCurrentTreeMask.at<uchar>(y, x) > 127;
 }
 

@@ -1261,6 +1261,49 @@ void System::SaveTrajectoryKITTI(const string &filename)
     f.close();
 }
 
+void System::SavePointCloudJSON(const string &filename)
+{
+    cout << endl << "Saving point cloud to " << filename << " ..." << endl;
+
+    vector<MapPoint*> vpMPs = mpAtlas->GetAllMapPoints();
+
+    ofstream f;
+    f.open(filename.c_str());
+    f << fixed << setprecision(6);
+
+    f << "[\n";
+
+    bool first = true;
+    for(size_t i = 0; i < vpMPs.size(); i++)
+    {
+        MapPoint* pMP = vpMPs[i];
+
+        // Skip bad points
+        if(pMP->isBad())
+            continue;
+
+        // Get world position
+        Eigen::Vector3f pos = pMP->GetWorldPos();
+
+        // Get tree detection count
+        int treecount = pMP->GetTreeDetectionCount();
+
+        // Add comma before all but first entry
+        if(!first)
+            f << ",\n";
+        first = false;
+
+        // Write JSON object for this point
+        f << "  {\"x\": " << pos(0) << ", \"y\": " << pos(1) << ", \"z\": " << pos(2)
+          << ", \"treecount\": " << treecount << "}";
+    }
+
+    f << "\n]\n";
+    f.close();
+
+    cout << "Point cloud saved!" << endl;
+}
+
 
 void System::SaveDebugData(const int &initIdx)
 {

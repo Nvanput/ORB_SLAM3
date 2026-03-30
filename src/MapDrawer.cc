@@ -26,7 +26,7 @@ namespace ORB_SLAM3
 {
 
 
-MapDrawer::MapDrawer(Atlas* pAtlas, const string &strSettingPath, Settings* settings):mpAtlas(pAtlas)
+MapDrawer::MapDrawer(Atlas* pAtlas, const string &strSettingPath, Settings* settings):mpAtlas(pAtlas), mTreeDetectionThreshold(5)
 {
     if(settings){
         newParameterLoader(settings);
@@ -57,6 +57,7 @@ void MapDrawer::newParameterLoader(Settings *settings) {
     mPointSize = settings->pointSize();
     mCameraSize = settings->cameraSize();
     mCameraLineWidth  = settings->cameraLineWidth();
+    mTreeDetectionThreshold = settings->treeDetectionThreshold();
 }
 
 bool MapDrawer::ParseViewerParamFile(cv::FileStorage &fSettings)
@@ -129,6 +130,15 @@ bool MapDrawer::ParseViewerParamFile(cv::FileStorage &fSettings)
         b_miss_params = true;
     }
 
+    node = fSettings["System.TreeDetectionThreshold"];
+    if(!node.empty())
+    {
+        if(node.isInt())
+            mTreeDetectionThreshold = node.operator int();
+        else
+            std::cerr << "*System.TreeDetectionThreshold must be an integer. Using default (5)*" << std::endl;
+    }
+
     return !b_miss_params;
 }
 
@@ -155,45 +165,25 @@ void MapDrawer::DrawMapPoints()
         if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
             continue;
         
-        // Check if this is a tree point
-        if(vpMPs[i]->IsTreePoint(5))  // Threshold of 5 detections
-            continue;  // Skip tree points for now, we'll draw them separately in green
+        if(vpMPs[i]->IsTreePoint(mTreeDetectionThreshold))
+            continue;
         
         Eigen::Matrix<float,3,1> pos = vpMPs[i]->GetWorldPos();
         glVertex3f(pos(0),pos(1),pos(2));
     }
     glEnd();
 
-    // Draw tree points in green
     glPointSize(mPointSize*4);
     glBegin(GL_POINTS);
-    glColor3f(0.0, 1.0, 0.0);  // Green color for tree points
-    
+    glColor3f(148.0/255.0, 121.0/255.0, 103.0/255.0);
+
     for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
     {
-        if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
+        if(vpMPs[i]->isBad())
             continue;
-        
-        // Only draw if this is a tree point
-        if(!vpMPs[i]->IsTreePoint(5))  // Threshold of 5 detections
+        if(!vpMPs[i]->IsTreePoint(mTreeDetectionThreshold))
             continue;
-        
         Eigen::Matrix<float,3,1> pos = vpMPs[i]->GetWorldPos();
-        glVertex3f(pos(0),pos(1),pos(2));
-    }
-    glEnd();
-
-    glPointSize(mPointSize*4);
-    glBegin(GL_POINTS);
-    glColor3f(0.0,1.0,0.0);
-
-    for(set<MapPoint*>::iterator sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
-    {
-        if((*sit)->isBad())
-            continue;
-        if(!(*sit)->IsTreePoint(5))
-            continue;
-        Eigen::Matrix<float,3,1> pos = (*sit)->GetWorldPos();
         glVertex3f(pos(0),pos(1),pos(2));
     }
 
@@ -207,7 +197,7 @@ void MapDrawer::DrawMapPoints()
     {
         if((*sit)->isBad())
             continue;
-        if((*sit)->IsTreePoint(5))
+        if((*sit)->IsTreePoint(mTreeDetectionThreshold))
             continue;
         Eigen::Matrix<float,3,1> pos = (*sit)->GetWorldPos();
         glVertex3f(pos(0),pos(1),pos(2));

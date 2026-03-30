@@ -60,6 +60,7 @@ private:
     float mPointSize;
     float mCameraSize;
     float mCameraLineWidth;
+    int mTreeDetectionThreshold;
 
     Sophus::SE3f mCameraPose;
 
