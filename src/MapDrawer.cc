@@ -26,7 +26,8 @@ namespace ORB_SLAM3
 {
 
 
-MapDrawer::MapDrawer(Atlas* pAtlas, const string &strSettingPath, Settings* settings):mpAtlas(pAtlas), mTreeDetectionThreshold(5)
+MapDrawer::MapDrawer(Atlas* pAtlas, const string &strSettingPath, Settings* settings):
+    mpAtlas(pAtlas), mTreeDetectionThreshold(5), mConcreteDetectionThreshold(5), mDirtDetectionThreshold(5)
 {
     if(settings){
         newParameterLoader(settings);
@@ -58,6 +59,8 @@ void MapDrawer::newParameterLoader(Settings *settings) {
     mCameraSize = settings->cameraSize();
     mCameraLineWidth  = settings->cameraLineWidth();
     mTreeDetectionThreshold = settings->treeDetectionThreshold();
+    mConcreteDetectionThreshold = settings->concreteDetectionThreshold();
+    mDirtDetectionThreshold = settings->dirtDetectionThreshold();
 }
 
 bool MapDrawer::ParseViewerParamFile(cv::FileStorage &fSettings)
@@ -139,6 +142,24 @@ bool MapDrawer::ParseViewerParamFile(cv::FileStorage &fSettings)
             std::cerr << "*System.TreeDetectionThreshold must be an integer. Using default (5)*" << std::endl;
     }
 
+    node = fSettings["System.ConcreteDetectionThreshold"];
+    if(!node.empty())
+    {
+        if(node.isInt())
+            mConcreteDetectionThreshold = node.operator int();
+        else
+            std::cerr << "*System.ConcreteDetectionThreshold must be an integer. Using default (5)*" << std::endl;
+    }
+
+    node = fSettings["System.DirtDetectionThreshold"];
+    if(!node.empty())
+    {
+        if(node.isInt())
+            mDirtDetectionThreshold = node.operator int();
+        else
+            std::cerr << "*System.DirtDetectionThreshold must be an integer. Using default (5)*" << std::endl;
+    }
+
     return !b_miss_params;
 }
 
@@ -165,7 +186,11 @@ void MapDrawer::DrawMapPoints()
         if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
             continue;
         
-        if(vpMPs[i]->IsTreePoint(mTreeDetectionThreshold))
+        bool bTree = vpMPs[i]->IsTreePoint(mTreeDetectionThreshold);
+        bool bConcrete = vpMPs[i]->IsConcretePoint(mConcreteDetectionThreshold);
+        bool bDirt = vpMPs[i]->IsDirtPoint(mDirtDetectionThreshold);
+
+        if(bTree || bConcrete || bDirt)
             continue;
         
         Eigen::Matrix<float,3,1> pos = vpMPs[i]->GetWorldPos();
@@ -175,14 +200,29 @@ void MapDrawer::DrawMapPoints()
 
     glPointSize(mPointSize*4);
     glBegin(GL_POINTS);
-    glColor3f(148.0/255.0, 121.0/255.0, 103.0/255.0);
 
     for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
     {
         if(vpMPs[i]->isBad())
             continue;
-        if(!vpMPs[i]->IsTreePoint(mTreeDetectionThreshold))
+
+        const int treeCount = vpMPs[i]->GetTreeDetectionCount();
+        const int concreteCount = vpMPs[i]->GetConcreteDetectionCount();
+        const int dirtCount = vpMPs[i]->GetDirtDetectionCount();
+
+        const bool bTree = treeCount >= mTreeDetectionThreshold;
+        const bool bConcrete = concreteCount >= mConcreteDetectionThreshold;
+        const bool bDirt = dirtCount >= mDirtDetectionThreshold;
+        if(!(bTree || bConcrete || bDirt))
             continue;
+
+        if(treeCount >= concreteCount && treeCount >= dirtCount)
+            glColor3f(0.0f, 1.0f, 0.0f);
+        else if(concreteCount >= treeCount && concreteCount >= dirtCount)
+            glColor3f(0.6f, 0.6f, 0.6f);
+        else
+            glColor3f(148.0f/255.0f, 121.0f/255.0f, 103.0f/255.0f);
+
         Eigen::Matrix<float,3,1> pos = vpMPs[i]->GetWorldPos();
         glVertex3f(pos(0),pos(1),pos(2));
     }
@@ -197,8 +237,13 @@ void MapDrawer::DrawMapPoints()
     {
         if((*sit)->isBad())
             continue;
-        if((*sit)->IsTreePoint(mTreeDetectionThreshold))
+
+        bool bTree = (*sit)->IsTreePoint(mTreeDetectionThreshold);
+        bool bConcrete = (*sit)->IsConcretePoint(mConcreteDetectionThreshold);
+        bool bDirt = (*sit)->IsDirtPoint(mDirtDetectionThreshold);
+        if(bTree || bConcrete || bDirt)
             continue;
+
         Eigen::Matrix<float,3,1> pos = (*sit)->GetWorldPos();
         glVertex3f(pos(0),pos(1),pos(2));
     }

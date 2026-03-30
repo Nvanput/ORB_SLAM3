@@ -1285,8 +1285,10 @@ void System::SavePointCloudJSON(const string &filename)
         // Get world position
         Eigen::Vector3f pos = pMP->GetWorldPos();
 
-        // Get tree detection count
+        // Get semantic detection counts
         int treecount = pMP->GetTreeDetectionCount();
+        int concretecount = pMP->GetConcreteDetectionCount();
+        int dirtcount = pMP->GetDirtDetectionCount();
 
         // Add comma before all but first entry
         if(!first)
@@ -1295,7 +1297,9 @@ void System::SavePointCloudJSON(const string &filename)
 
         // Write JSON object for this point
         f << "  {\"x\": " << pos(0) << ", \"y\": " << pos(1) << ", \"z\": " << pos(2)
-          << ", \"treecount\": " << treecount << "}";
+                    << ", \"treecount\": " << treecount
+                    << ", \"concretecount\": " << concretecount
+                    << ", \"dirtcount\": " << dirtcount << "}";
     }
 
     f << "\n]\n";

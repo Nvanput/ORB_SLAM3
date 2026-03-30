@@ -31,7 +31,7 @@ MapPoint::MapPoint():
     mnFirstKFid(0), mnFirstFrame(0), nObs(0), mnTrackReferenceForFrame(0),
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mnVisible(1), mnFound(1), mbBad(false),
-    mpReplaced(static_cast<MapPoint*>(NULL)), mTreeDetectionCount(0)
+    mpReplaced(static_cast<MapPoint*>(NULL)), mTreeDetectionCount(0), mConcreteDetectionCount(0), mDirtDetectionCount(0)
 {
     mpReplaced = static_cast<MapPoint*>(NULL);
 }
@@ -41,7 +41,7 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map* pMap):
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
     mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap),
-    mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0)
+    mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0), mConcreteDetectionCount(0), mDirtDetectionCount(0)
 {
     SetWorldPos(Pos);
 
@@ -60,7 +60,7 @@ MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame* pRefKF,
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
     mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap),
-    mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0)
+    mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0), mConcreteDetectionCount(0), mDirtDetectionCount(0)
 {
     mInvDepth=invDepth;
     mInitU=(double)uv_init.x;
@@ -79,7 +79,7 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map* pMap, Frame* pFrame, const i
     mnFirstKFid(-1), mnFirstFrame(pFrame->mnId), nObs(0), mnTrackReferenceForFrame(0), mnLastFrameSeen(0),
     mnBALocalForKF(0), mnFuseCandidateForKF(0),mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(static_cast<KeyFrame*>(NULL)), mnVisible(1),
-    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap), mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0)
+    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap), mnOriginMapId(pMap->GetId()), mTreeDetectionCount(0), mConcreteDetectionCount(0), mDirtDetectionCount(0)
 {
     SetWorldPos(Pos);
 
@@ -250,7 +250,7 @@ void MapPoint::Replace(MapPoint* pMP)
     if(pMP->mnId==this->mnId)
         return;
 
-    int nvisible, nfound, nTreeDetections;
+    int nvisible, nfound, nTreeDetections, nConcreteDetections, nDirtDetections;
     map<KeyFrame*,tuple<int,int>> obs;
     {
         unique_lock<mutex> lock1(mMutexFeatures);
@@ -261,6 +261,8 @@ void MapPoint::Replace(MapPoint* pMP)
         nvisible = mnVisible;
         nfound = mnFound;
         nTreeDetections = mTreeDetectionCount;
+        nConcreteDetections = mConcreteDetectionCount;
+        nDirtDetections = mDirtDetectionCount;
         mpReplaced = pMP;
     }
 
@@ -296,6 +298,8 @@ void MapPoint::Replace(MapPoint* pMP)
     pMP->IncreaseFound(nfound);
     pMP->IncreaseVisible(nvisible);
     pMP->IncreaseTreeDetectionCount(nTreeDetections);
+    pMP->IncreaseConcreteDetectionCount(nConcreteDetections);
+    pMP->IncreaseDirtDetectionCount(nDirtDetections);
     pMP->ComputeDistinctiveDescriptors();
 
     mpMap->EraseMapPoint(this);
@@ -649,6 +653,42 @@ bool MapPoint::IsTreePoint(int threshold)
 {
     unique_lock<mutex> lock(mMutexFeatures);
     return mTreeDetectionCount >= threshold;
+}
+
+void MapPoint::IncreaseConcreteDetectionCount(int n)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mConcreteDetectionCount += n;
+}
+
+int MapPoint::GetConcreteDetectionCount()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mConcreteDetectionCount;
+}
+
+bool MapPoint::IsConcretePoint(int threshold)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mConcreteDetectionCount >= threshold;
+}
+
+void MapPoint::IncreaseDirtDetectionCount(int n)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mDirtDetectionCount += n;
+}
+
+int MapPoint::GetDirtDetectionCount()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mDirtDetectionCount;
+}
+
+bool MapPoint::IsDirtPoint(int threshold)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mDirtDetectionCount >= threshold;
 }
 
 } //namespace ORB_SLAM

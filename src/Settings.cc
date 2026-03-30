@@ -481,9 +481,49 @@ namespace ORB_SLAM3 {
 
         thFarPoints_ = readParameter<float>(fSettings,"System.thFarPoints",found,false);
 
-        treeDetectionThreshold_ = readParameter<int>(fSettings,"System.TreeDetectionThreshold",found,false);
+        maskFolderPath_ = readParameter<string>(fSettings,"System.MaskFolderPath",found,false);
         if(!found)
+            maskFolderPath_ = "data/masks";
+
+        maskMargin_ = readParameter<int>(fSettings,"System.MaskMargin",found,false);
+        if(!found || maskMargin_ < 0)
+            maskMargin_ = 0;
+
+        treeMaskColor_ = readParameter<int>(fSettings,"System.TreeMaskColor",found,false);
+        if(!found)
+            treeMaskColor_ = 2;
+        if(treeMaskColor_ < 0)
+            treeMaskColor_ = 0;
+        if(treeMaskColor_ > 2)
+            treeMaskColor_ = 2;
+
+        concreteMaskColor_ = readParameter<int>(fSettings,"System.ConcreteMaskColor",found,false);
+        if(!found)
+            concreteMaskColor_ = 0;
+        if(concreteMaskColor_ < 0)
+            concreteMaskColor_ = 0;
+        if(concreteMaskColor_ > 2)
+            concreteMaskColor_ = 2;
+
+        dirtMaskColor_ = readParameter<int>(fSettings,"System.DirtMaskColor",found,false);
+        if(!found)
+            dirtMaskColor_ = 1;
+        if(dirtMaskColor_ < 0)
+            dirtMaskColor_ = 0;
+        if(dirtMaskColor_ > 2)
+            dirtMaskColor_ = 2;
+
+        treeDetectionThreshold_ = readParameter<int>(fSettings,"System.TreeDetectionThreshold",found,false);
+        if(!found || treeDetectionThreshold_ < 1)
             treeDetectionThreshold_ = 5;
+
+        concreteDetectionThreshold_ = readParameter<int>(fSettings,"System.ConcreteDetectionThreshold",found,false);
+        if(!found || concreteDetectionThreshold_ < 1)
+            concreteDetectionThreshold_ = treeDetectionThreshold_;
+
+        dirtDetectionThreshold_ = readParameter<int>(fSettings,"System.DirtDetectionThreshold",found,false);
+        if(!found || dirtDetectionThreshold_ < 1)
+            dirtDetectionThreshold_ = treeDetectionThreshold_;
     }
 
     void Settings::precomputeRectificationMaps() {
@@ -636,7 +676,14 @@ namespace ORB_SLAM3 {
         output << "\t-ORB number of scales: " << settings.nLevels_ << endl;
         output << "\t-Initial FAST threshold: " << settings.initThFAST_ << endl;
         output << "\t-Min FAST threshold: " << settings.minThFAST_ << endl;
+        output << "\t-Mask folder path: " << settings.maskFolderPath_ << endl;
+        output << "\t-Mask margin: " << settings.maskMargin_ << endl;
+        output << "\t-Tree mask color (G): " << settings.treeMaskColor_ << endl;
+        output << "\t-Concrete mask color (R): " << settings.concreteMaskColor_ << endl;
+        output << "\t-Dirt mask color (B): " << settings.dirtMaskColor_ << endl;
         output << "\t-Tree detection threshold: " << settings.treeDetectionThreshold_ << endl;
+        output << "\t-Concrete detection threshold: " << settings.concreteDetectionThreshold_ << endl;
+        output << "\t-Dirt detection threshold: " << settings.dirtDetectionThreshold_ << endl;
 
         return output;
     }

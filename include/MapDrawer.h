@@ -61,6 +61,8 @@ private:
     float mCameraSize;
     float mCameraLineWidth;
     int mTreeDetectionThreshold;
+    int mConcreteDetectionThreshold;
+    int mDirtDetectionThreshold;
 
     Sophus::SE3f mCameraPose;
 

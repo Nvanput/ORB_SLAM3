@@ -35,6 +35,7 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 
 
 using namespace std;
@@ -50,9 +51,15 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpAtlas(pAtlas), mnLastRelocFrameId(0), time_recently_lost(5.0),
     mnInitialFrameId(0), mbCreatedMap(false), mnFirstFrameId(0), mpCamera2(nullptr), mpLastKeyFrame(static_cast<KeyFrame*>(NULL))
 {
-    // Initialize tree mask handling defaults.
-    mTreeMaskPath = "data/masks";
+    // Semantic mask defaults preserve old behavior when config is absent.
+    mMaskFolderPath = "data/masks";
+    mMaskMargin = 0;
+    mTreeMaskColor = 255;
+    mConcreteMaskColor = 255;
+    mDirtMaskColor = 255;
     mTreeDetectionThreshold = 5;
+    mConcreteDetectionThreshold = 5;
+    mDirtDetectionThreshold = 5;
 
     // Load camera parameters from settings file
     if(settings){
@@ -107,6 +114,49 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
             else
                 cout << "Tracking: System.TreeDetectionThreshold must be integer. Using default (5)." << endl;
         }
+
+        node = fSettings["System.ConcreteDetectionThreshold"];
+        if(!node.empty())
+        {
+            if(node.isInt())
+                mConcreteDetectionThreshold = node.operator int();
+            else
+                cout << "Tracking: System.ConcreteDetectionThreshold must be integer. Using default (5)." << endl;
+        }
+
+        node = fSettings["System.DirtDetectionThreshold"];
+        if(!node.empty())
+        {
+            if(node.isInt())
+                mDirtDetectionThreshold = node.operator int();
+            else
+                cout << "Tracking: System.DirtDetectionThreshold must be integer. Using default (5)." << endl;
+        }
+
+        node = fSettings["System.MaskFolderPath"];
+        if(!node.empty() && node.isString())
+            mMaskFolderPath = node.string();
+
+        node = fSettings["System.MaskMargin"];
+        if(!node.empty() && node.isInt())
+            mMaskMargin = std::max(0, node.operator int());
+
+        node = fSettings["System.TreeMaskColor"];
+        if(!node.empty() && node.isInt())
+            mTreeMaskColor = std::max(0, std::min(255, node.operator int()));
+
+        node = fSettings["System.ConcreteMaskColor"];
+        if(!node.empty() && node.isInt())
+            mConcreteMaskColor = std::max(0, std::min(255, node.operator int()));
+
+        node = fSettings["System.DirtMaskColor"];
+        if(!node.empty() && node.isInt())
+            mDirtMaskColor = std::max(0, std::min(255, node.operator int()));
+
+        if(mConcreteDetectionThreshold < 1)
+            mConcreteDetectionThreshold = mTreeDetectionThreshold;
+        if(mDirtDetectionThreshold < 1)
+            mDirtDetectionThreshold = mTreeDetectionThreshold;
     }
 
     initID = 0; lastID = 0;
@@ -599,7 +649,14 @@ void Tracking::newParameterLoader(Settings *settings) {
     mMinFrames = 0;
     mMaxFrames = settings->fps();
     mbRGB = settings->rgb();
+    mMaskFolderPath = settings->maskFolderPath();
+    mMaskMargin = settings->maskMargin();
+    mTreeMaskColor = settings->treeMaskColor();
+    mConcreteMaskColor = settings->concreteMaskColor();
+    mDirtMaskColor = settings->dirtMaskColor();
     mTreeDetectionThreshold = settings->treeDetectionThreshold();
+    mConcreteDetectionThreshold = settings->concreteDetectionThreshold();
+    mDirtDetectionThreshold = settings->dirtDetectionThreshold();
 
     //ORB parameters
     int nFeatures = settings->nFeatures();
@@ -1818,8 +1875,8 @@ void Tracking::Track()
         mbStep = false;
     }
 
-    // Load tree mask once per frame so all tracking branches use the same mask.
-    LoadTreeMask(mCurrentFrame.mNameFile);
+    // Load semantic mask once per frame; if unavailable, tracking remains plain SLAM.
+    LoadSemanticMask(mCurrentFrame.mNameFile);
 
     if(mpLocalMapper->mbBadImu)
     {
@@ -2793,8 +2850,13 @@ bool Tracking::TrackReferenceKeyFrame()
                 if(i < static_cast<int>(mCurrentFrame.mvKeysUn.size()))
                 {
                     const cv::Point2f pt = mCurrentFrame.mvKeysUn[i].pt;
-                    if(IsFeatureInTreeMask(pt))
+                    SemanticClass cls = GetFeatureSemanticClass(pt);
+                    if(cls == SEM_TREE)
                         mCurrentFrame.mvpMapPoints[i]->IncreaseTreeDetectionCount(1);
+                    else if(cls == SEM_CONCRETE)
+                        mCurrentFrame.mvpMapPoints[i]->IncreaseConcreteDetectionCount(1);
+                    else if(cls == SEM_DIRT)
+                        mCurrentFrame.mvpMapPoints[i]->IncreaseDirtDetectionCount(1);
                 }
             }
         }
@@ -2964,8 +3026,13 @@ bool Tracking::TrackWithMotionModel()
                 if(i < static_cast<int>(mCurrentFrame.mvKeysUn.size()))
                 {
                     const cv::Point2f pt = mCurrentFrame.mvKeysUn[i].pt;
-                    if(IsFeatureInTreeMask(pt))
-                        mCurrentFrame.mvpMapPoints[i]->IncreaseTreeDetectionCount();
+                    SemanticClass cls = GetFeatureSemanticClass(pt);
+                    if(cls == SEM_TREE)
+                        mCurrentFrame.mvpMapPoints[i]->IncreaseTreeDetectionCount(1);
+                    else if(cls == SEM_CONCRETE)
+                        mCurrentFrame.mvpMapPoints[i]->IncreaseConcreteDetectionCount(1);
+                    else if(cls == SEM_DIRT)
+                        mCurrentFrame.mvpMapPoints[i]->IncreaseDirtDetectionCount(1);
                 }
             }
         }
@@ -4161,11 +4228,11 @@ void Tracking::Release()
 }
 #endif
 
-void Tracking::LoadTreeMask(const string &imagePath)
+void Tracking::LoadSemanticMask(const string &imagePath)
 {
     if(imagePath.empty())
     {
-        mCurrentTreeMask.release();
+        mCurrentSemanticMask.release();
         return;
     }
 
@@ -4177,53 +4244,68 @@ void Tracking::LoadTreeMask(const string &imagePath)
     string stem = (lastDot == string::npos) ? fileName : fileName.substr(0, lastDot);
 
     vector<string> candidatePaths;
+    candidatePaths.push_back(mMaskFolderPath + "/" + stem + "_mask.png");
     if(!imageDir.empty())
     {
-        candidatePaths.push_back(imageDir + "/masks/" + stem + ".png");
-        candidatePaths.push_back(imageDir + "/masks/" + stem + "_mask.png");
+        // Backward compatibility for older datasets/layouts.
+        candidatePaths.push_back(imageDir + "/masksv2/" + stem + "_mask.png");
+        candidatePaths.push_back(imageDir + "/masksv2/" + stem + ".png");
     }
-    candidatePaths.push_back(mTreeMaskPath + "/" + stem + ".png");
-    candidatePaths.push_back(mTreeMaskPath + "/" + stem + "_mask.png");
+    candidatePaths.push_back(mMaskFolderPath + "/" + stem + ".png");
 
     for(const string &maskPath : candidatePaths)
     {
-        cv::Mat mask = cv::imread(maskPath, cv::IMREAD_GRAYSCALE);
+        cv::Mat mask = cv::imread(maskPath, cv::IMREAD_COLOR);
         if(mask.empty())
             continue;
 
         if(!mImGray.empty() && mask.size() != mImGray.size())
-        {
-            // Keep mask binary semantics while matching the image used by feature extraction.
-            cv::resize(mask, mCurrentTreeMask, mImGray.size(), 0.0, 0.0, cv::INTER_NEAREST);
-        }
+            cv::resize(mask, mCurrentSemanticMask, mImGray.size(), 0.0, 0.0, cv::INTER_NEAREST);
         else
-        {
-            mCurrentTreeMask = mask;
-        }
+            mCurrentSemanticMask = mask;
         return;
     }
 
-    cout << "TREE MASK: Warning: Tree mask not found for frame " << imagePath << endl;
-    mCurrentTreeMask.release();
+    mCurrentSemanticMask.release();
 }
 
-bool Tracking::IsFeatureInTreeMask(const cv::Point2f &pt) const
+Tracking::SemanticClass Tracking::GetFeatureSemanticClass(const cv::Point2f &pt) const
 {
-    if(mCurrentTreeMask.empty())
+    if(mCurrentSemanticMask.empty())
     {
-        cout << "TREE MASK: No tree mask available" << endl;
-        return false;
+        cout << "No semantic mask available, returning SEM_NONE" << endl;
+        return SEM_NONE;
     }
-    
+
     int x = (int)pt.x;
     int y = (int)pt.y;
-    
-    // Check bounds
-    if(x < 0 || y < 0 || x >= mCurrentTreeMask.cols || y >= mCurrentTreeMask.rows)
+
+    if(x < 0 || y < 0 || x >= mCurrentSemanticMask.cols || y >= mCurrentSemanticMask.rows)
+        return SEM_NONE;
+
+    SemanticClass bestClass = SEM_NONE;
+
+    int minY = std::max(0, y - mMaskMargin);
+    int maxY = std::min(mCurrentSemanticMask.rows - 1, y + mMaskMargin);
+    int minX = std::max(0, x - mMaskMargin);
+    int maxX = std::min(mCurrentSemanticMask.cols - 1, x + mMaskMargin);
+
+    for(int yy = minY; yy <= maxY; ++yy)
     {
-        return false;
+        for(int xx = minX; xx <= maxX; ++xx)
+        {
+            const cv::Vec3b pixel = mCurrentSemanticMask.at<cv::Vec3b>(yy, xx);
+            if(pixel[mTreeMaskColor] > 127)
+                bestClass = SEM_TREE;
+
+            if(pixel[mConcreteMaskColor] > 127)
+                bestClass = SEM_CONCRETE;
+
+            if(pixel[mDirtMaskColor] > 127)
+                bestClass = SEM_DIRT;
+        }
     }
-    return mCurrentTreeMask.at<uchar>(y, x) > 127;
+    return bestClass;
 }
 
 } //namespace ORB_SLAM

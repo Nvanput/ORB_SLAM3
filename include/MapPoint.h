@@ -160,6 +160,16 @@ public:
     int GetTreeDetectionCount();
     bool IsTreePoint(int threshold=5);
 
+    // Concrete detection methods
+    void IncreaseConcreteDetectionCount(int n=1);
+    int GetConcreteDetectionCount();
+    bool IsConcretePoint(int threshold=5);
+
+    // Dirt detection methods
+    void IncreaseDirtDetectionCount(int n=1);
+    int GetDirtDetectionCount();
+    bool IsDirtPoint(int threshold=5);
+
     void PrintObservations();
 
     void PreSave(set<KeyFrame*>& spKF,set<MapPoint*>& spMP);
@@ -251,6 +261,8 @@ protected:
 
      // Tree detection counter
      int mTreeDetectionCount;
+    int mConcreteDetectionCount;
+    int mDirtDetectionCount;
 
      // Mutex
      std::mutex mMutexPos;

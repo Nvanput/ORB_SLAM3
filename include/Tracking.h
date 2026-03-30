@@ -58,6 +58,15 @@ class Tracking
 
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    enum SemanticClass
+    {
+        SEM_NONE = 0,
+        SEM_TREE = 1,
+        SEM_CONCRETE = 2,
+        SEM_DIRT = 3
+    };
+
     Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Atlas* pAtlas,
              KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq=std::string());
 
@@ -176,9 +185,10 @@ public:
 
     bool mbWriteStats;
 
-    // Tree mask handling
-    void LoadTreeMask(const string &imagePath);
-    bool IsFeatureInTreeMask(const cv::Point2f &pt) const;
+    // Semantic mask handling
+    void LoadSemanticMask(const string &imagePath);
+    SemanticClass GetFeatureSemanticClass(const cv::Point2f &pt) const;
+    int ScorePixelForClass(const cv::Vec3b &pixel, SemanticClass cls) const;
 
 #ifdef REGISTER_TIMES
     void LocalMapStats2File();
@@ -361,10 +371,16 @@ protected:
 
     void newParameterLoader(Settings* settings);
 
-    // Tree mask handling
-    cv::Mat mCurrentTreeMask;
-    string mTreeMaskPath;
+    // Semantic mask handling
+    cv::Mat mCurrentSemanticMask;
+    string mMaskFolderPath;
+    int mMaskMargin;
+    int mTreeMaskColor;
+    int mConcreteMaskColor;
+    int mDirtMaskColor;
     int mTreeDetectionThreshold;
+    int mConcreteDetectionThreshold;
+    int mDirtDetectionThreshold;
 
 #ifdef REGISTER_LOOP
     bool Stop();

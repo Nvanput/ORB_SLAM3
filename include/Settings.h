@@ -116,7 +116,14 @@ namespace ORB_SLAM3 {
         std::string atlasSaveFile() {return sSaveto_;}
 
         float thFarPoints() {return thFarPoints_;}
+        std::string maskFolderPath() {return maskFolderPath_;}
+        int maskMargin() {return maskMargin_;}
+        int treeMaskColor() {return treeMaskColor_;}
+        int concreteMaskColor() {return concreteMaskColor_;}
+        int dirtMaskColor() {return dirtMaskColor_;}
         int treeDetectionThreshold() {return treeDetectionThreshold_;}
+        int concreteDetectionThreshold() {return concreteDetectionThreshold_;}
+        int dirtDetectionThreshold() {return dirtDetectionThreshold_;}
 
         cv::Mat M1l() {return M1l_;}
         cv::Mat M2l() {return M2l_;}
@@ -228,7 +235,14 @@ namespace ORB_SLAM3 {
          * Other stuff
          */
         float thFarPoints_;
+        std::string maskFolderPath_;
+        int maskMargin_;
+        int treeMaskColor_;
+        int concreteMaskColor_;
+        int dirtMaskColor_;
         int treeDetectionThreshold_;
+        int concreteDetectionThreshold_;
+        int dirtDetectionThreshold_;
 
     };
 };
