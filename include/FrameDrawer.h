@@ -84,6 +84,9 @@ protected:
     map<long unsigned int, cv::Point2f> mmProjectPoints;
     map<long unsigned int, cv::Point2f> mmMatchedInImage;
 
+    cv::Mat mCurrentSemanticMask;
+    double mMaskOverlayOpacity;
+
 };
 
 } //namespace ORB_SLAM

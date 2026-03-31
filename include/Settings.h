@@ -124,6 +124,7 @@ namespace ORB_SLAM3 {
         int treeDetectionThreshold() {return treeDetectionThreshold_;}
         int concreteDetectionThreshold() {return concreteDetectionThreshold_;}
         int dirtDetectionThreshold() {return dirtDetectionThreshold_;}
+        double maskOverlayOpacity() {return maskOverlayOpacity_;}
 
         cv::Mat M1l() {return M1l_;}
         cv::Mat M2l() {return M2l_;}
@@ -243,6 +244,7 @@ namespace ORB_SLAM3 {
         int treeDetectionThreshold_;
         int concreteDetectionThreshold_;
         int dirtDetectionThreshold_;
+        double maskOverlayOpacity_;
 
     };
 };

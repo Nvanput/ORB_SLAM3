@@ -60,6 +60,7 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     mTreeDetectionThreshold = 5;
     mConcreteDetectionThreshold = 5;
     mDirtDetectionThreshold = 5;
+    mMaskOverlayOpacity = 0.35;
 
     // Load camera parameters from settings file
     if(settings){
@@ -152,6 +153,21 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
         node = fSettings["System.DirtMaskColor"];
         if(!node.empty() && node.isInt())
             mDirtMaskColor = std::max(0, std::min(255, node.operator int()));
+
+        node = fSettings["System.MaskOverlayOpacity"];
+        if(!node.empty())
+        {
+            if(node.isReal())
+            {
+                mMaskOverlayOpacity = node.real();
+                if(mMaskOverlayOpacity < 0.0)
+                    mMaskOverlayOpacity = 0.0;
+                if(mMaskOverlayOpacity > 1.0)
+                    mMaskOverlayOpacity = 1.0;
+            }
+            else
+                cout << "Tracking: System.MaskOverlayOpacity must be a real number. Using default (0.35)." << endl;
+        }
 
         if(mConcreteDetectionThreshold < 1)
             mConcreteDetectionThreshold = mTreeDetectionThreshold;
@@ -657,6 +673,7 @@ void Tracking::newParameterLoader(Settings *settings) {
     mTreeDetectionThreshold = settings->treeDetectionThreshold();
     mConcreteDetectionThreshold = settings->concreteDetectionThreshold();
     mDirtDetectionThreshold = settings->dirtDetectionThreshold();
+    mMaskOverlayOpacity = settings->maskOverlayOpacity();
 
     //ORB parameters
     int nFeatures = settings->nFeatures();

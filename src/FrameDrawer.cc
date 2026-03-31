@@ -27,7 +27,7 @@
 namespace ORB_SLAM3
 {
 
-FrameDrawer::FrameDrawer(Atlas* pAtlas):both(false),mpAtlas(pAtlas)
+FrameDrawer::FrameDrawer(Atlas* pAtlas):both(false),mpAtlas(pAtlas),mMaskOverlayOpacity(0.35)
 {
     mState=Tracking::SYSTEM_NOT_READY;
     mIm = cv::Mat(480,640,CV_8UC3, cv::Scalar(0,0,0));
@@ -108,6 +108,50 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
 
     if(im.channels()<3) //this should be always true
         cvtColor(im,im,cv::COLOR_GRAY2BGR);
+
+    // Overlay semantic mask if available
+    if(!mCurrentSemanticMask.empty() && mMaskOverlayOpacity > 0.0)
+    {
+        cv::Mat overlay = cv::Mat::zeros(im.size(), CV_8UC3);
+        
+        // Check if mask needs to be resized to match image
+        cv::Mat maskToUse = mCurrentSemanticMask;
+        if(maskToUse.size() != im.size())
+        {
+            cv::resize(maskToUse, maskToUse, im.size(), 0.0, 0.0, cv::INTER_NEAREST);
+        }
+        
+        // Map semantic classes to BGR colors and create overlay
+        for(int y = 0; y < maskToUse.rows; y++)
+        {
+            for(int x = 0; x < maskToUse.cols; x++)
+            {
+                const cv::Vec3b pixel = maskToUse.at<cv::Vec3b>(y, x);
+                cv::Vec3b color(0, 0, 0);
+                
+                // Check for tree (green channel dominant) - color: (0, 255, 0)
+                if(pixel[1] > pixel[0] && pixel[1] > pixel[2] && pixel[1] > 50)
+                {
+                    color = cv::Vec3b(0, 255, 0);
+                }
+                // Check for concrete (red channel dominant) - color: (128, 128, 128) gray
+                else if(pixel[2] > pixel[0] && pixel[2] > pixel[1] && pixel[2] > 50)
+                {
+                    color = cv::Vec3b(128, 128, 128);
+                }
+                // Check for dirt (blue channel dominant) - color: (103, 121, 148) brown
+                else if(pixel[0] > pixel[1] && pixel[0] > pixel[2] && pixel[0] > 50)
+                {
+                    color = cv::Vec3b(103, 121, 148);
+                }
+                
+                overlay.at<cv::Vec3b>(y, x) = color;
+            }
+        }
+        
+        // Blend overlay with image using opacity
+        cv::addWeighted(im, 1.0 - mMaskOverlayOpacity, overlay, mMaskOverlayOpacity, 0.0, im);
+    }
 
     //Draw
     if(state==Tracking::NOT_INITIALIZED)
@@ -371,6 +415,8 @@ void FrameDrawer::Update(Tracking *pTracker)
 {
     unique_lock<mutex> lock(mMutex);
     pTracker->mImGray.copyTo(mIm);
+    pTracker->mCurrentSemanticMask.copyTo(mCurrentSemanticMask);
+    mMaskOverlayOpacity = pTracker->mMaskOverlayOpacity;
     mvCurrentKeys=pTracker->mCurrentFrame.mvKeys;
     mThDepth = pTracker->mCurrentFrame.mThDepth;
     mvCurrentDepth = pTracker->mCurrentFrame.mvDepth;

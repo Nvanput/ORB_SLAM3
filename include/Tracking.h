@@ -372,7 +372,6 @@ protected:
     void newParameterLoader(Settings* settings);
 
     // Semantic mask handling
-    cv::Mat mCurrentSemanticMask;
     string mMaskFolderPath;
     int mMaskMargin;
     int mTreeMaskColor;
@@ -381,8 +380,8 @@ protected:
     int mTreeDetectionThreshold;
     int mConcreteDetectionThreshold;
     int mDirtDetectionThreshold;
-
-#ifdef REGISTER_LOOP
+    
+    #ifdef REGISTER_LOOP
     bool Stop();
 
     bool mbStopped;
@@ -393,6 +392,8 @@ protected:
 
 public:
     cv::Mat mImRight;
+    cv::Mat mCurrentSemanticMask;
+    double mMaskOverlayOpacity;
 };
 
 } //namespace ORB_SLAM

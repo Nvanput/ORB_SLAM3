@@ -524,6 +524,14 @@ namespace ORB_SLAM3 {
         dirtDetectionThreshold_ = readParameter<int>(fSettings,"System.DirtDetectionThreshold",found,false);
         if(!found || dirtDetectionThreshold_ < 1)
             dirtDetectionThreshold_ = treeDetectionThreshold_;
+
+        maskOverlayOpacity_ = readParameter<float>(fSettings,"System.MaskOverlayOpacity",found,false);
+        if(!found)
+            maskOverlayOpacity_ = 0.35;
+        if(maskOverlayOpacity_ < 0.0)
+            maskOverlayOpacity_ = 0.0;
+        if(maskOverlayOpacity_ > 1.0)
+            maskOverlayOpacity_ = 1.0;
     }
 
     void Settings::precomputeRectificationMaps() {
