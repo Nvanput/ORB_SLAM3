@@ -4261,14 +4261,14 @@ void Tracking::LoadSemanticMask(const string &imagePath)
     string stem = (lastDot == string::npos) ? fileName : fileName.substr(0, lastDot);
 
     vector<string> candidatePaths;
+    cout << "Looking for semantic mask in: " << mMaskFolderPath + "/" + stem + "_mask.png" << endl;
     candidatePaths.push_back(mMaskFolderPath + "/" + stem + "_mask.png");
     if(!imageDir.empty())
     {
         // Backward compatibility for older datasets/layouts.
         candidatePaths.push_back(imageDir + "/masksv2/" + stem + "_mask.png");
-        candidatePaths.push_back(imageDir + "/masksv2/" + stem + ".png");
+        candidatePaths.push_back(imageDir + "/masks/" + stem + "_mask.png");
     }
-    candidatePaths.push_back(mMaskFolderPath + "/" + stem + ".png");
 
     for(const string &maskPath : candidatePaths)
     {
@@ -4312,6 +4312,12 @@ Tracking::SemanticClass Tracking::GetFeatureSemanticClass(const cv::Point2f &pt)
         for(int xx = minX; xx <= maxX; ++xx)
         {
             const cv::Vec3b pixel = mCurrentSemanticMask.at<cv::Vec3b>(yy, xx);
+            if(pixel[mTreeMaskColor] > 127 && pixel[mConcreteMaskColor] > 127 && pixel[mDirtMaskColor] > 127)
+            {
+                bestClass = SEM_TREE;
+                continue;
+            }
+
             if(pixel[mTreeMaskColor] > 127)
                 bestClass = SEM_TREE;
 
